@@ -1,202 +1,129 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import random
-import numpy as np
-import math as m
-import matplotlib.pyplot  as plt
+import matplotlib.pyplot as plt
 import pandas as pd
-
-
-def nearest_neighbor(coords, u_1=0):
-    # initialize unprocessed nodes, processed nodes and sum of weights W
-    u_nodes = coords.copy()
-    p_nodes = []
-    W = 0
-
-    # decide on first node
-    if 0 <= u_1 <= len(u_nodes)-1:
-        u_i = np.array(u_nodes.pop(u_1))
-    else:
-        random.shuffle(u_nodes)
-        u_i = np.array(u_nodes.pop())
-
-    # save starting position
-    start = u_i
-
-    # mark first node as processed node
-    p_nodes.append(u_i)
-
-    # go through unprocessed nodes until every node is processed
-    while len(u_nodes) != 0:
-        # initialize list of distances between u_i and every unprocessed node
-        dists = []
-
-        # calculate distances between u_i and every unprocessed node
-        for node in u_nodes:
-            u = np.array(node)
-            dist = np.linalg.norm(u_i - u)
-            dists.append(dist)
-
-        # check for minimal distance and index of closest node to u_i
-        min_dist = min(dists)
-        min_i = dists.index(min_dist)
-
-        # add distance to sum of weights W
-        W += min_dist
-
-        # set new u_i and mark it as processed node
-        u_i = np.array(u_nodes.pop(min_i))
-        p_nodes.append(u_i)
-
-    # add distance between first and last node
-    W += np.linalg.norm(start - u_i)
-
-    # append starting position to end of list (plotting)
-    p_nodes.append(start)
-
-    print(p_nodes)
-    print("W: ", W)
-    return W, p_nodes
-
-
-def nn_best(coords):
-    # initialize list of sum of weights W and list of list of processed nodes
-    W_list = []
-    p_nodes_list = []
-
-    # for every node as a start node compute Hamilton's cycle
-    for k in range(len(coords)):
-        W_k, p_nodes_k = nearest_neighbor(coords, k)
-        W_list.append(W_k)
-        p_nodes_list.append(p_nodes_k)
-
-    # get minimal sum of weights and its index
-    W_min = min(W_list)
-    W_min_i = W_list.index(W_min)
-
-    # search for Hamilton's cycle with minimal sum of weights
-    p_nodes_min = p_nodes_list[W_min_i]
-
-    return W_min, p_nodes_min
-
-
-def best_insertion(coords):
-    # initialize unprocessed nodes, processed nodes and sum of weights W
-    u_nodes = coords.copy()
-    p_nodes = []
-    W = 0
-
-    # pick three random points to initialize hamilton's circle
-    for _ in range(3):
-        random.shuffle(u_nodes)
-        u_i = np.array(u_nodes.pop())
-        p_nodes.append(u_i)
-
-    # save starting position
-    start = p_nodes[0]
-
-    # calculate distances between first three nodes
-    for i in range(len(p_nodes)):
-        u1 = p_nodes[i]
-        u2 = (p_nodes + [start])[i+1]
-        dist = np.linalg.norm(u1 - u2)
-        W += dist
-
-    # go through unprocessed nodes until every node is processed
-    while len(u_nodes) != 0:
-        # catch out of index exception
-        hamilton = p_nodes + [start]
-
-        # pick random node
-        random.shuffle(u_nodes)
-        u = np.array(u_nodes.pop())
-
-        # initialize list of delta w distances
-        d_ws = []
-
-        # calculating delta w for every edge
-        for j in range(len(p_nodes)):
-            d_w = np.linalg.norm(hamilton[j] - u) + np.linalg.norm(u - hamilton[j+1]) \
-                   - np.linalg.norm(hamilton[j] - hamilton[j+1])
-            d_ws.append(d_w)
-
-        # check for minimal delta w and index of corresponding node
-        min_w = min(d_ws)
-        min_i = d_ws.index(min_w)
-
-        # insert node to hamilton's circle
-        p_nodes.insert(min_i+1, u)
-        W += min_w
-
-    # append starting position to end of list (plotting)
-    p_nodes.append(start)
-
-    print(p_nodes)
-    print("W: ", W)
-    return W, p_nodes
-
-
-def bi_best(coords, rep):
-    # initialize list of sum of weights W and list of list of processed nodes
-    W_list = []
-    p_nodes_list = []
-
-    # for every node as a start node compute Hamilton's cycle
-    for k in range(rep):
-        W_k, p_nodes_k = best_insertion(coords)
-        W_list.append(W_k)
-        p_nodes_list.append(p_nodes_k)
-
-    # get minimal sum of weights and its index
-    W_min = min(W_list)
-    W_min_i = W_list.index(W_min)
-
-    # search for Hamilton's cycle with minimal sum of weights
-    p_nodes_min = p_nodes_list[W_min_i]
-
-    return W_min, p_nodes_min
+import time
+from tsp_funkce import *
 
 
 if __name__ == '__main__':
 
     # prepare list of nodes
-    graph_path = r'berlin.csv'
+    graph_path = r'data\lin105.csv'
     graph = pd.read_csv(graph_path, delimiter=';')
     graph.apply(pd.to_numeric, errors='coerce').fillna(graph)
     graph_XY = graph[['POINT_X', 'POINT_Y']].values.tolist()
-    graph_names = graph['nazev']
+
+    # prepare sequence of optimal solution
+    graph_tour_path = r'data\lin105_tour.csv'
+    graph_tour = pd.read_csv(graph_tour_path, delimiter=';', header=None)
+    graph_tour.apply(pd.to_numeric, errors='coerce')
+    graph_tour = graph_tour[0].tolist()
+
+    # prepare sequence of gis solutions
+    graph_tour_gis_path1 = r'data\lin105_tour_gis_dt.csv'
+    graph_tour_gis1 = pd.read_csv(graph_tour_gis_path1, delimiter=';', header=None)
+    graph_tour_gis1.apply(pd.to_numeric, errors='coerce')
+    graph_tour_gis1 = graph_tour_gis1[0].tolist()
+
+    graph_tour_gis_path2 = r'data\lin105_tour_gis_all.csv'
+    graph_tour_gis2 = pd.read_csv(graph_tour_gis_path2, delimiter=';', header=None)
+    graph_tour_gis2.apply(pd.to_numeric, errors='coerce')
+    graph_tour_gis2 = graph_tour_gis2[0].tolist()
+
+    # compute best solution
+    weight_best, nodes_best = tour_solution(graph_XY, graph_tour)
+
+    # compute Hamilton's cycle from ArcGIS Pro Network Analyst
+    weight_gis1, nodes_gis1 = tour_solution(graph_XY, graph_tour_gis1)
+    weight_gis2, nodes_gis2 = tour_solution(graph_XY, graph_tour_gis2)
 
     # compute best weights and nodes for both methods
+    start_NN = time.time()
     weight_NN, nodes_NN = nn_best(graph_XY)
+    end_NN = time.time()
+    time_NN = end_NN - start_NN
+
+    start_BI = time.time()
     weight_BI, nodes_BI = bi_best(graph_XY, len(graph_XY))
+    end_BI = time.time()
+    time_BI = end_BI - start_BI
 
     # prepare lists for plotting
+    x_nodes_best, y_nodes_best = list(zip(*nodes_best))
     x_nodes_NN, y_nodes_NN = list(zip(*nodes_NN))
-    labels_NN = map(str, list(range(1, len(nodes_NN))))
     x_nodes_BI, y_nodes_BI = list(zip(*nodes_BI))
-    labels_BI = map(str, list(range(1, len(nodes_BI))))
+    x_nodes_gis1, y_nodes_gis1 = list(zip(*nodes_gis1))
+    x_nodes_gis2, y_nodes_gis2 = list(zip(*nodes_gis2))
 
-    # plot results of NN
-    plt.figure()
-    plt.scatter(x_nodes_NN, y_nodes_NN)
-    plt.plot(x_nodes_NN, y_nodes_NN)
-    for xy, i in zip(graph_XY, graph_names):
-        plt.text(xy[0], xy[1], str(i), va='top', color='k', backgroundcolor='r')
-    for x, y, i in zip(list(x_nodes_NN), list(y_nodes_NN), labels_NN):
-        plt.text(x, y, i, va='bottom', color='r', backgroundcolor='k')
-    plt.title('Nearest Neighbor, W=%s' % weight_NN)
-    plt.xlabel('X')
-    plt.ylabel('Y')
+    # calculate k-coefficient
+    k_NN = weight_NN / weight_best
+    k_BI = weight_BI / weight_best
+    k_gis1 = weight_gis1 / weight_best
+    k_gis2 = weight_gis2 / weight_best
+    k_gis = min(k_gis1, k_gis2)
+    if k_gis == k_gis1:
+        x_nodes_gis, y_nodes_gis = x_nodes_gis1, y_nodes_gis1
+        weight_gis = weight_gis1
+    else:
+        x_nodes_gis, y_nodes_gis = x_nodes_gis2, y_nodes_gis2
+        weight_gis = weight_gis2
+
+    ### plotting results
+
+    ## comparison of ArcGIS Pro results
+    fig1, axs1 = plt.subplots(1, 2)
+    fig1.suptitle('lin105 – ArcGIS Pro solutions')
+
+    # Delaunay triangulation – axs[0, 0]
+    axs1[0].scatter(x_nodes_gis1, y_nodes_gis1, color='black')
+    axs1[0].plot(x_nodes_gis1, y_nodes_gis1, color='brown')
+    axs1[0].scatter(x_nodes_gis1[0], y_nodes_gis1[0], s=40, color='brown')
+    axs1[0].set_title('Edges: Delaunay triangulation, W=%.3f, k=%.3f, t=%.3f' % (weight_gis1, k_gis1, 5.))
+
+    axs1[1].scatter(x_nodes_gis2, y_nodes_gis2, color='black')
+    axs1[1].plot(x_nodes_gis2, y_nodes_gis2, color='orange')
+    axs1[1].scatter(x_nodes_gis2[0], y_nodes_gis2[0], s=40, color='orange')
+    axs1[1].set_title('Edges: All possible edges, W=%.3f, k=%.3f, t=%.3f' % (weight_gis2, k_gis2, 11.))
+
+    ## comparison of all results
+    fig2, axs2 = plt.subplots(2, 2)
+    fig2.suptitle('lin105 – Comparison of all results')
+    for a in axs2:
+        for b in a:
+            b.scatter(x_nodes_best, y_nodes_best, color='black')
+
+    # Best solution – axs[0, 0]
+    axs2[0, 0].plot(x_nodes_best, y_nodes_best)
+    axs2[0, 0].scatter(x_nodes_best[0], y_nodes_best[0], s=40)
+    axs2[0, 0].set_title('Optimal solution, W=%.3f, k=%.3f' % (weight_best, 1.000))
+
+    # Nearest Neighbor – axs[0, 1]
+    axs2[0, 1].plot(x_nodes_NN, y_nodes_NN, color='green')
+    axs2[0, 1].scatter(x_nodes_NN[0], y_nodes_NN[0], color='green', s=40)
+    axs2[0, 1].set_title('Nearest Neighbor, W=%.3f, k=%.3f, t=%.3f s' % (weight_NN, k_NN, time_NN))
+
+    # Best Insertion – axs[1, 0]
+    axs2[1, 0].plot(x_nodes_BI, y_nodes_BI, color='red')
+    axs2[1, 0].scatter(x_nodes_BI[0], y_nodes_BI[0], color='red', s=40)
+    axs2[1, 0].set_title('Best insertion, W=%.3f, k=%.3f, t=%.3f s' % (weight_BI, k_BI, time_BI))
+
+    # Best solution – axs[0, 0]
+    axs2[1, 1].plot(x_nodes_gis, y_nodes_gis, color='magenta')
+    axs2[1, 1].scatter(x_nodes_gis[0], y_nodes_gis[0], s=40, color='magenta')
+    axs2[1, 1].set_title('ArcGIS Pro Network Analyst, W=%.3f, k=%.3f, t=%.3f s' % (weight_gis, k_gis, 11.0))
+
     plt.show()
 
-    # plot results of BI
-    plt.figure()
-    plt.scatter(x_nodes_BI, y_nodes_BI)
-    plt.plot(x_nodes_BI, y_nodes_BI)
-    for x, y, i in zip(list(x_nodes_BI), list(y_nodes_BI), labels_BI):
-        plt.text(x, y, i)
-    plt.title('Best insertion, W=%s' % weight_BI)
-    plt.xlabel('X')
-    plt.ylabel('Y')
+    # tuning of best insertion result
+    plt.figure(3)
+    t_start = time.time()
+    bi_reps, bi_k, _ = bi_tuning(graph_XY, weight_best, 1.01)
+    t_end = time.time()
+    t_time = t_end - t_start
+    print(bi_reps)
+    x_reps = [i for i in range(1, bi_reps+1)]
+    plt.plot(x_reps, bi_k)
+    plt.title('Number of repetitions: %i, time: %.3f' % (bi_reps, t_time))
     plt.show()
