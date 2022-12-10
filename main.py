@@ -10,13 +10,13 @@ from tsp_funkce import *
 if __name__ == '__main__':
 
     # prepare list of nodes
-    graph_path = r'data\lin105.csv'
+    graph_path = r'data\ch130.csv'
     graph = pd.read_csv(graph_path, delimiter=';')
     graph.apply(pd.to_numeric, errors='coerce').fillna(graph)
     graph_XY = graph[['POINT_X', 'POINT_Y']].values.tolist()
 
     # prepare sequence of optimal solution
-    graph_tour_path = r'data\lin105_tour.csv'
+    graph_tour_path = r'data\ch130_tour.csv'
     graph_tour = pd.read_csv(graph_tour_path, delimiter=';', header=None)
     graph_tour.apply(pd.to_numeric, errors='coerce')
     graph_tour = graph_tour[0].tolist()
@@ -34,12 +34,13 @@ if __name__ == '__main__':
 
     # compute best solution
     weight_best, nodes_best = tour_solution(graph_XY, graph_tour)
+    print(weight_best)
 
     # compute Hamilton's cycle from ArcGIS Pro Network Analyst
     weight_gis1, nodes_gis1 = tour_solution(graph_XY, graph_tour_gis1)
     weight_gis2, nodes_gis2 = tour_solution(graph_XY, graph_tour_gis2)
 
-    # compute best weights and nodes for both methods
+    # compute best weights and nodes for all methods
     start_NN = time.time()
     weight_NN, nodes_NN = nn_best(graph_XY)
     end_NN = time.time()
@@ -50,16 +51,23 @@ if __name__ == '__main__':
     end_BI = time.time()
     time_BI = end_BI - start_BI
 
+    start_BI_d = time.time()
+    weight_BI_d, nodes_BI_d = bi_d_best(graph_XY, len(graph_XY))
+    end_BI_d = time.time()
+    time_BI_d = end_BI_d - start_BI_d
+
     # prepare lists for plotting
     x_nodes_best, y_nodes_best = list(zip(*nodes_best))
     x_nodes_NN, y_nodes_NN = list(zip(*nodes_NN))
     x_nodes_BI, y_nodes_BI = list(zip(*nodes_BI))
+    x_nodes_BI_d, y_nodes_BI_d = list(zip(*nodes_BI_d))
     x_nodes_gis1, y_nodes_gis1 = list(zip(*nodes_gis1))
     x_nodes_gis2, y_nodes_gis2 = list(zip(*nodes_gis2))
 
     # calculate k-coefficient
     k_NN = weight_NN / weight_best
     k_BI = weight_BI / weight_best
+    k_BI_d = weight_BI_d / weight_best
     k_gis1 = weight_gis1 / weight_best
     k_gis2 = weight_gis2 / weight_best
     k_gis = min(k_gis1, k_gis2)
@@ -86,6 +94,8 @@ if __name__ == '__main__':
     axs1[1].plot(x_nodes_gis2, y_nodes_gis2, color='orange')
     axs1[1].scatter(x_nodes_gis2[0], y_nodes_gis2[0], s=40, color='orange')
     axs1[1].set_title('Edges: All possible edges, W=%.3f, k=%.3f, t=%.3f' % (weight_gis2, k_gis2, 11.))
+
+    plt.show()
 
     ## comparison of all results
     fig2, axs2 = plt.subplots(2, 2)
@@ -116,8 +126,25 @@ if __name__ == '__main__':
 
     plt.show()
 
+    ## comparison of Best Insertion methods
+    fig3, axs3 = plt.subplots(1, 2)
+    fig3.suptitle('lin105 – Best Insertion solutions')
+
+    # Delaunay triangulation – axs[0, 0]
+    axs3[0].scatter(x_nodes_BI, y_nodes_BI, color='black')
+    axs3[0].plot(x_nodes_BI, y_nodes_BI, color='brown')
+    axs3[0].scatter(x_nodes_BI[0], y_nodes_BI[0], s=40, color='brown')
+    axs3[0].set_title('Best Insertion, W=%.3f, k=%.3f, t=%.3f' % (weight_BI, k_BI, time_BI))
+
+    axs3[1].scatter(x_nodes_BI_d, y_nodes_BI_d, color='black')
+    axs3[1].plot(x_nodes_BI_d, y_nodes_BI_d, color='orange')
+    axs3[1].scatter(x_nodes_BI_d[0], y_nodes_BI_d[0], s=40, color='orange')
+    axs3[1].set_title('Best Insertion deterministic, W=%.3f, k=%.3f, t=%.3f' % (weight_BI_d, k_BI_d, time_BI_d))
+
+    plt.show()
+
     # tuning of best insertion result
-    plt.figure(3)
+    plt.figure(4)
     t_start = time.time()
     bi_reps, bi_k, _ = bi_tuning(graph_XY, weight_best, 1.01)
     t_end = time.time()
